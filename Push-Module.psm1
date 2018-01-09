@@ -35,6 +35,7 @@ function Push-Module {
         
 #>
 
+    [cmdletbinding()]
     Param(
         [Parameter(Mandatory = $true)]
         [System.Management.Automation.Runspaces.PSSession[]]$Session,
@@ -44,45 +45,46 @@ function Push-Module {
         [switch]$Persist        
     )
 
+    $IsVerbose = $PSCmdlet.MyInvocation.BoundParameters["Verbose"] -eq $True
+
     function Copy-File ($Session, $FilePath, $DestinationPath) {
 
         $base64string = [Convert]::ToBase64String([IO.File]::ReadAllBytes($FilePath))
         Invoke-Command -Session $Session -ScriptBlock {
+            $DestinationFolder = Split-Path $Using:DestinationPath 
+            If (!(Test-Path $DestinationFolder)) { New-Item -Path $DestinationFolder -ItemType Directory -Force | Out-Null }
             [IO.File]::WriteAllBytes($Using:DestinationPath, [Convert]::FromBase64String($Using:base64string))
         }
 
     }
-
+    
     Try {
 
         $PSModuleInfo = Get-Module -Name $Name
         If (!$PSModuleInfo) { Throw "Push-Module : The specified module '$Name' was not pushed because no valid module file was found in any module directory."; Return }
 
         $ModuleName = $PSModuleInfo.Name
-        $ModuleBase = Get-ChildItem -Path $PSModuleInfo.ModuleBase | Select -Expand FullName
+        $ModuleBase = $PSModuleInfo.ModuleBase
         $RemoteBase = Invoke-Command -Session $Session -ScriptBlock { New-Item "$PSHome\Modules\${Using:ModuleName}" -ItemType Directory -Force } | Select -Expand FullName
 
-        $ChildItem = Get-ChildItem -Path $ModuleBase -Recurse
+        $ChildItem = Get-ChildItem -Path $ModuleBase -Recurse -Attributes Archive
         ForEach ($Item in $ChildItem) {
+            Try {
             $RemotePath = "$RemoteBase\$($Item.FullName.Substring($ModuleBase.Length + 1))"
-            Switch ($Item.Attributes) {
-            "Directory" { Invoke-Command -Session $Session -ScriptBlock { New-Item $Using:RemotePath -ItemType Directory -Force } | Out-Null }
-            "Archive"   { Copy-File -Session $Session -FilePath $Item.FullName -DestinationPath $RemotePath }
+            Copy-File -Session $Session -FilePath $Item.FullName -DestinationPath $RemotePath
+            } Catch { Throw $_ }
+        }
+
+        Invoke-Command -Session $Session -ScriptBlock {
+            Import-Module $Using:RemoteBase\$Using:ModuleName -Force
+        }
+
+        If (!$Persist) {
+            Invoke-Command -Session $Session -ScriptBlock { 
+                Remove-Item "$Using:RemoteBase" -Recurse -Force -Confirm:$False 
             }
         }
 
-    } Catch {
-        Throw $_
-    }
-
-    Invoke-Command -Session $Session -ScriptBlock {
-        Import-Module $Using:RemoteBase\$Using:ModuleName -Force
-    }
-
-    If (!$Persist) {
-      Invoke-Command -Session $Session -ScriptBlock {
-        Remove-Item -Path $Using:RemoteBase -Force -Recurse
-      }
-    }
+    } Catch { Throw $_ }
 
 }
