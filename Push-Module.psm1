@@ -45,16 +45,16 @@ function Push-Module {
     $PSModuleInfo = Get-Module -Name $Name
     If (!$PSModuleInfo) { Throw "Copy-Module : The specified module '$Name' was not copied because no valid module file was found in any module directory."; Return }
 
-    function Invoke-Export([string] $Name, $Dictionary) { 
+    function Output-ModuleMember([string] $Name, $Dictionary) { 
         If ($Dictionary.Keys.Count -gt 0) {
-            Return " -$Name $($Dictionary.Keys -Join ",")"
+            Return " -$Name '$($Dictionary.Keys -Join "','")'"
         }
     }
 
-    $ExportedFunctions = Invoke-Export "Function" $PSModuleInfo.ExportedFunctions
-    $ExportedAliases   = Invoke-Export "Alias" $PSModuleInfo.ExportedAliases
-    $ExportedCmdlets   = Invoke-Export "Cmdlet" $PSModuleInfo.ExportedCmdlets
-    $ExportedVariables = Invoke-Export "Variable" $PSModuleInfo.ExportedVariables
+    $ExportedFunctions = Output-ModuleMember "Function" $PSModuleInfo.ExportedFunctions
+    $ExportedAliases   = Output-ModuleMember "Alias" $PSModuleInfo.ExportedAliases
+    $ExportedCmdlets   = Output-ModuleMember "Cmdlet" $PSModuleInfo.ExportedCmdlets
+    $ExportedVariables = Output-ModuleMember "Variable" $PSModuleInfo.ExportedVariables
     
     $ExportModuleMember = "Export-ModuleMember $ExportedFunctions $ExportedAliases $ExportedCmdlets $ExportedVariables"
 
