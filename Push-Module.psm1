@@ -36,31 +36,53 @@ function Push-Module {
 #>
 
     Param(
-        [Parameter(Mandatory = $true, Position=0)]
+        [Parameter(Mandatory = $true)]
         [System.Management.Automation.Runspaces.PSSession[]]$Session,
-        [Parameter(Mandatory = $true, Position=1)]
-        [string]$Name
+        [Parameter(Mandatory = $true)]
+        [string]$Name,
+        [Parameter(Mandatory = $False)]
+        [switch]$Persist        
     )
 
-    $PSModuleInfo = Get-Module -Name $Name
-    If (!$PSModuleInfo) { Throw "Copy-Module : The specified module '$Name' was not copied because no valid module file was found in any module directory."; Return }
+    function Copy-File ($Session, $FilePath, $DestinationPath) {
 
-    function Output-ModuleMember([string] $Name, $Dictionary) { 
-        If ($Dictionary.Keys.Count -gt 0) {
-            Return " -$Name '$($Dictionary.Keys -Join "','")'"
+        $base64string = [Convert]::ToBase64String([IO.File]::ReadAllBytes($FilePath))
+        Invoke-Command -Session $Session -ScriptBlock {
+            [IO.File]::WriteAllBytes($Using:DestinationPath, [Convert]::FromBase64String($Using:base64string))
         }
+
     }
 
-    $ExportedFunctions = Output-ModuleMember "Function" $PSModuleInfo.ExportedFunctions
-    $ExportedAliases   = Output-ModuleMember "Alias" $PSModuleInfo.ExportedAliases
-    $ExportedCmdlets   = Output-ModuleMember "Cmdlet" $PSModuleInfo.ExportedCmdlets
-    $ExportedVariables = Output-ModuleMember "Variable" $PSModuleInfo.ExportedVariables
-    
-    $ExportModuleMember = "Export-ModuleMember $ExportedFunctions $ExportedAliases $ExportedCmdlets $ExportedVariables"
+    Try {
 
-    $Command  = "If (Get-Module -Name $Name) { Remove-Module -Name $Name };`r`n"
-    $Command += "New-Module -Name $Name { $($PSModuleInfo.Definition); $ExportModuleMember; } | Import-Module;"
-    
-    Invoke-Command -Session $Session -ScriptBlock { Invoke-Expression $Using:Command }
+        $PSModuleInfo = Get-Module -Name $Name
+        If (!$PSModuleInfo) { Throw "Push-Module : The specified module '$Name' was not pushed because no valid module file was found in any module directory."; Return }
+
+        $ModuleName = $PSModuleInfo.Name
+        $ModuleBase = Get-ChildItem -Path $PSModuleInfo.ModuleBase | Select -Expand FullName
+        $RemoteBase = Invoke-Command -Session $Session -ScriptBlock { New-Item "$PSHome\Modules\${Using:ModuleName}" -ItemType Directory -Force } | Select -Expand FullName
+
+        $ChildItem = Get-ChildItem -Path $ModuleBase -Recurse
+        ForEach ($Item in $ChildItem) {
+            $RemotePath = "$RemoteBase\$($Item.FullName.Substring($ModuleBase.Length + 1))"
+            Switch ($Item.Attributes) {
+            "Directory" { Invoke-Command -Session $Session -ScriptBlock { New-Item $Using:RemotePath -ItemType Directory -Force } | Out-Null }
+            "Archive"   { Copy-File -Session $Session -FilePath $Item.FullName -DestinationPath $RemotePath }
+            }
+        }
+
+    } Catch {
+        Throw $_
+    }
+
+    Invoke-Command -Session $Session -ScriptBlock {
+        Import-Module $Using:RemoteBase\$Using:ModuleName -Force
+    }
+
+    If (!$Persist) {
+      Invoke-Command -Session $Session -ScriptBlock {
+        Remove-Item -Path $Using:RemoteBase -Force -Recurse
+      }
+    }
 
 }
