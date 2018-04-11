@@ -14,7 +14,7 @@ function Push-Module {
 
     By Marc R Kellerman (@mkellerman)
 
-    Original Code from: 
+    Inspired by: 
     https://stackoverflow.com/questions/14441800/how-to-import-custom-powershell-module-into-the-remote-session
     
 .PARAMETER Session
