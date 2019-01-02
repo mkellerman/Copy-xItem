@@ -1,6 +1,6 @@
 ﻿
 
-function Push-Module {
+function Copy-xModule {
 
 <#
 
@@ -47,7 +47,17 @@ function Push-Module {
 
     $IsVerbose = $PSCmdlet.MyInvocation.BoundParameters["Verbose"] -eq $True
 
-    function Copy-File ($Session, $FilePath, $DestinationPath) {
+    function Copy-xItem ($Session, $FilePath, $DestinationPath) {
+
+        [cmdletbinding()]
+        Param(
+            [Parameter(Mandatory = $true)]
+            [System.Management.Automation.Runspaces.PSSession[]]$Session,
+            [Parameter(Mandatory = $true)]
+            [string]$Name,
+            [Parameter(Mandatory = $true)]
+            [string]$DestinationPath
+        )
 
         $base64string = [Convert]::ToBase64String([IO.File]::ReadAllBytes($FilePath))
         Invoke-Command -Session $Session -ScriptBlock {
@@ -71,7 +81,7 @@ function Push-Module {
         ForEach ($Item in $ChildItem) {
             Try {
             $RemotePath = "$RemoteBase\$($Item.FullName.Substring($ModuleBase.Length + 1))"
-            Copy-File -Session $Session -FilePath $Item.FullName -DestinationPath $RemotePath
+            Copy-xItem -Session $Session -FilePath $Item.FullName -DestinationPath $RemotePath
             } Catch { Throw $_ }
         }
 
