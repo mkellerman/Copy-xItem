@@ -1,3 +1,3 @@
-# Push-Module
+# Copy-xModule
 
-Push Module to a Remote Session.
+Copy Module to a Remote Session.
