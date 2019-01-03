@@ -1,5 +1,4 @@
-﻿
-function Copy-xItem {
+﻿function Copy-xItem {
 
 <#
 
@@ -192,18 +191,21 @@ function Copy-xModule {
         # to copy the module folder into the remove machine.
 
         function Get-ModuleMember([PSModuleInfo]$PSModuleInfo) { 
-
             [string]$ModuleMember = ""
             If ($PSModuleInfo.ExportedFunctions.Keys.Count -gt 0) { $ModuleMember += " -Function '$($PSModuleInfo.ExportedFunctions.Keys -join "', '")'" }
             If ($PSModuleInfo.ExportedAliases.Keys.Count -gt 0)   { $ModuleMember += " -Alias '$($PSModuleInfo.ExportedAliases.Keys -join "', '")'" }
             If ($PSModuleInfo.ExportedCmdlets.Keys.Count -gt 0)   { $ModuleMember += " -Cmdlet '$($PSModuleInfo.ExportedCmdlets.Keys -join "', '")'" }
             If ($PSModuleInfo.ExportedVariables.Keys.Count -gt 0) { $ModuleMember += " -Variable '$($PSModuleInfo.ExportedVariables.Keys -join "', '")'" }
             If ($ModuleMember) { Return "Export-ModuleMember${ModuleMember}"}
-
         }
 
-        $ModuleMember = Get-ModuleMember -PSModuleInfo $PSModuleInfo
-        $ModuleDefinition = $PSModuleInfo.Definition
+        If ($PSModuleInfo.Definition) {
+            $ModuleMember = Get-ModuleMember -PSModuleInfo $PSModuleInfo
+            $ModuleDefinition = $PSModuleInfo.Definition
+        } Else {
+            $ModuleMember = $Null
+            $ModuleDefinition = Get-Content $PSModuleInfo.Path -Raw
+        }
 
         Invoke-Command -Session $Session -ScriptBlock {
             $____7e59ff7b21a94eca88d1073b0b150a4f = [ScriptBlock]::Create("${Using:ModuleDefinition}; ${Using:ModuleMember};")
